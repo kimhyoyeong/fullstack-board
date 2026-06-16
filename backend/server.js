@@ -22,6 +22,47 @@ app.use(cors());
 app.use(express.json());
 
 /**
+ * 인증 미들웨어
+ * 
+ * 역할:
+ * - 프론트에서 보낸 JWT 토큰을 확인한다.
+ * - 토큰이 없거나 잘못되면 요청을 막는다.
+ * - 토큰이 정상이라면 req.user에 사용자 정보를 넣고 다음 API로 넘긴다.
+ */
+function authMiddleware(req, res, next) {
+  // 프론트에서 보낸 Authorization 헤더 확인
+  // 예: Authorization: Bearer eyJhbGciOi...
+  const authHeader = req.headers.authorization;
+
+  // 토큰이 아예 없는 경우
+  if (!authHeader) {
+    return res.status(401).json({
+      message: '토큰이 없습니다.',
+    });
+  }
+
+  // "Bearer 토큰값" 형태에서 실제 토큰만 꺼냄
+  const token = authHeader.split(' ')[1];
+
+  try {
+    // JWT 검증
+    // 로그인할 때 사용한 비밀키와 같은 키로 검사해야 함
+    const decoded = jwt.verify(token, 'my-secret-key');
+
+    // 검증된 사용자 정보를 요청 객체에 저장
+    // 이후 API에서 req.user.userId, req.user.email 사용 가능
+    req.user = decoded;
+
+    // 다음 API로 이동
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      message: '유효하지 않은 토큰입니다.',
+    });
+  }
+}
+
+/**
  * 서버 상태 확인용 API
  * GET http://localhost:3001/
  */
@@ -128,6 +169,20 @@ app.post('/login', async (req, res) => {
       email: user.email,
       name: user.name,
     },
+  });
+});
+
+
+/**
+ * 로그인한 사용자 확인 API
+ * GET http://localhost:3001/me
+ *
+ * Authorization 헤더에 JWT 토큰이 있어야 접근 가능
+ */
+app.get('/me', authMiddleware, async (req, res) => {
+  res.json({
+    message: '인증 성공',
+    user: req.user,
   });
 });
 
